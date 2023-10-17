@@ -76,7 +76,7 @@ async def async_main():
                 # log(state_json)
 
                 await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=state_json)
-                await asyncio.sleep(1)
+                await asyncio.sleep(5)
 
 
 asyncio.run(async_main())
