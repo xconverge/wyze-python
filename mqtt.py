@@ -5,6 +5,8 @@ from dotenv import dotenv_values
 
 secrets = dotenv_values(".env")
 
+REQUESTED_STATE_TOPIC = "wyze-python/floodlight/requested_state"
+
 
 def on_connect(client, userdata, flags, rc):
     print("MQTT Connected with result code " + str(rc))
@@ -14,7 +16,7 @@ def on_disconnect(client, userdata, rc):
     print("MQTT disconnected with result code " + str(rc))
 
 
-def connect():
+def connect(on_message_callback):
     # Set timeout for connection and reconnection
     socket.setdefaulttimeout(2)
 
@@ -25,6 +27,7 @@ def connect():
     client = mqtt.Client("wyze-python")
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
+    client.on_message = on_message_callback
     client.connect(host, port)
 
     # MQTT Threaded loop starting
@@ -36,13 +39,16 @@ def connect():
 
     print("Connected")
 
+    res = client.subscribe(REQUESTED_STATE_TOPIC)
+    print("Subscribed to " + REQUESTED_STATE_TOPIC, res)
+
     return client
 
 
-def write(client: mqtt.Client, value):
+def write_state(client: mqtt.Client, state):
     try:
-        topic = "wyze-python/value"
-        ret = client.publish(topic, value)
+        topic = "wyze-python/floodlight/actual_state"
+        ret = client.publish(topic, state)
         return ret
     except:
         print("Exception in MQTT write")

@@ -2,6 +2,8 @@ import asyncio
 from wyzeapy import Wyzeapy
 import time
 
+import mqtt as m
+
 from dotenv import dotenv_values
 
 secrets = dotenv_values(".env")
@@ -23,19 +25,35 @@ async def async_main():
         camera for camera in cameras if camera.nickname == "Floodlight"
     )
 
-    print(floodlight_cam)
+    def on_message_callback(client, userdata, message, tmp=None):
+        message.payload = message.payload.decode("utf-8")
+        print(
+            "New Received message "
+            + str(message.payload)
+            + " on topic '"
+            + message.topic
+            + "' with QoS "
+            + str(message.qos)
+        )
+        if message.topic == m.REQUESTED_STATE_TOPIC:
+            if str(message.payload) == "true":
+                print("TURNING ON")
+                asyncio.create_task(camera_service.floodlight_on(floodlight_cam))
+            elif str(message.payload) == "false":
+                print("TURNING OFF")
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(camera_service.floodlight_off(floodlight_cam))
+            else:
+                print("Unknown command received: ", str(message.payload))
 
-    # await camera_service.floodlight_on(floodlight_cam)
-    # time.sleep(1)
-    # floodlight_cam = await camera_service.update(floodlight_cam)
-    # time.sleep(1)
-    # print(floodlight_cam.floodlight)
+    mqtt_client = m.connect(on_message_callback)
 
-    # await camera_service.floodlight_off(floodlight_cam)
-    # time.sleep(1)
-    # floodlight_cam = await camera_service.update(floodlight_cam)
-    # time.sleep(1)
-    # print(floodlight_cam.floodlight)
+    while True:
+        floodlight_cam = await camera_service.update(floodlight_cam)
+        floodlight_state = floodlight_cam.floodlight
+        print("Writing: ", floodlight_state)
+        m.write_state(mqtt_client, floodlight_state)
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
