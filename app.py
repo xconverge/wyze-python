@@ -1,7 +1,7 @@
 import asyncio
 from wyzeapy import Wyzeapy
-import time
 import aiomqtt
+import json
 
 TOPIC_STATE_REQUESTED = "wyze-python/floodlight/requested_state"
 TOPIC_STATE_ACTUAL = "wyze-python/floodlight/actual_state"
@@ -39,6 +39,7 @@ async def async_main():
                 api_key=secrets["WYZE_API_KEY"],
                 key_id=secrets["WYZE_API_KEY_ID"],
             )
+            print("Connected to Wyze API")
 
             camera_service = await client.camera_service
             cameras = await camera_service.get_cameras()
@@ -46,14 +47,27 @@ async def async_main():
             floodlight_cam = next(
                 camera for camera in cameras if camera.nickname == "Floodlight"
             )
+            print("Got floodlight camera")
 
             tg.create_task(mqtt_listen(camera_service, floodlight_cam))
 
+            print("Starting main loop")
             while True:
                 floodlight_cam = await camera_service.update(floodlight_cam)
-                floodlight_state = floodlight_cam.floodlight
-                print("Writing: ", floodlight_state)
-                await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=floodlight_state)
+
+                state = {
+                    "floodlight": floodlight_cam.floodlight,
+                    "on": floodlight_cam.on,
+                    "motion": floodlight_cam.motion,
+                    "last_event_ts": floodlight_cam.last_event_ts,
+                    "last_event": floodlight_cam.last_event,
+                    "raw": floodlight_cam.raw_dict,
+                }
+                state_json = json.dumps(state, indent=4)
+
+                # print(state_json)
+
+                await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=state_json)
                 await asyncio.sleep(1)
 
 
