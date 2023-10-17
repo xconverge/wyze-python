@@ -6,6 +6,7 @@ import datetime
 
 TOPIC_STATE_REQUESTED = "wyze-python/floodlight/requested_state"
 TOPIC_STATE_ACTUAL = "wyze-python/floodlight/actual_state"
+TOPIC_STATE_FLOODLIGHT_CHANGE = "wyze-python/floodlight/actual_floodlight_change"
 
 from dotenv import dotenv_values
 
@@ -25,7 +26,7 @@ async def mqtt_listen(camera_service, floodlight_cam):
             await client.subscribe(TOPIC_STATE_REQUESTED)
             async for message in messages:
                 message.payload = message.payload.decode("utf-8")
-                log("New Received message ", message.topic, message.payload)
+                log("New Received message " + message.topic.value + " " + message.payload)
                 if message.topic.matches(TOPIC_STATE_REQUESTED):
                     if message.payload == "true":
                         log("TURNING ON")
@@ -34,7 +35,7 @@ async def mqtt_listen(camera_service, floodlight_cam):
                         log("TURNING OFF")
                         await camera_service.floodlight_off(floodlight_cam)
                     else:
-                        log("Unknown command received: ", message.payload)
+                        log("Unknown command received: " + message.payload)
 
 
 async def async_main():
@@ -60,6 +61,7 @@ async def async_main():
             tg.create_task(mqtt_listen(camera_service, floodlight_cam))
 
             log("Starting main loop")
+            prev_state = False
             while True:
                 floodlight_cam = await camera_service.update(floodlight_cam)
 
@@ -73,6 +75,13 @@ async def async_main():
                 state_json = json.dumps(state, indent=4)
                 # log(state_json)
                 await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=state_json)
+
+                if prev_state != floodlight_cam.floodlight:
+                    log("State changed, now: " + str(floodlight_cam.floodlight) )
+                    await mqtt_client.publish(TOPIC_STATE_FLOODLIGHT_CHANGE, payload=floodlight_cam.floodlight)
+
+                prev_state = floodlight_cam.floodlight
+
                 await asyncio.sleep(5)
 
 
