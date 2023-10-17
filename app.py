@@ -1,61 +1,60 @@
 import asyncio
 from wyzeapy import Wyzeapy
 import time
+import aiomqtt
 
-import mqtt as m
+TOPIC_STATE_REQUESTED = "wyze-python/floodlight/requested_state"
+TOPIC_STATE_ACTUAL = "wyze-python/floodlight/actual_state"
 
 from dotenv import dotenv_values
 
 secrets = dotenv_values(".env")
 
 
+async def mqtt_listen(camera_service, floodlight_cam):
+    async with aiomqtt.Client(secrets["MQTT_HOST"]) as client:
+        async with client.messages() as messages:
+            await client.subscribe(TOPIC_STATE_REQUESTED)
+            async for message in messages:
+                message.payload = message.payload.decode("utf-8")
+                print("New Received message ", message.topic, message.payload)
+                if message.topic.matches(TOPIC_STATE_REQUESTED):
+                    if message.payload == "true":
+                        print("TURNING ON")
+                        await camera_service.floodlight_on(floodlight_cam)
+                    elif message.payload == "false":
+                        print("TURNING OFF")
+                        await camera_service.floodlight_off(floodlight_cam)
+                    else:
+                        print("Unknown command received: ", message.payload)
+
+
 async def async_main():
-    client = await Wyzeapy.create()
-    await client.login(
-        email=secrets["WYZE_EMAIL"],
-        password=secrets["WYZE_PASSWORD"],
-        api_key=secrets["WYZE_API_KEY"],
-        key_id=secrets["WYZE_API_KEY_ID"],
-    )
+    async with aiomqtt.Client(secrets["MQTT_HOST"]) as mqtt_client:
+        async with asyncio.TaskGroup() as tg:
+            client = await Wyzeapy.create()
+            await client.login(
+                email=secrets["WYZE_EMAIL"],
+                password=secrets["WYZE_PASSWORD"],
+                api_key=secrets["WYZE_API_KEY"],
+                key_id=secrets["WYZE_API_KEY_ID"],
+            )
 
-    camera_service = await client.camera_service
-    cameras = await camera_service.get_cameras()
+            camera_service = await client.camera_service
+            cameras = await camera_service.get_cameras()
 
-    floodlight_cam = next(
-        camera for camera in cameras if camera.nickname == "Floodlight"
-    )
+            floodlight_cam = next(
+                camera for camera in cameras if camera.nickname == "Floodlight"
+            )
 
-    def on_message_callback(client, userdata, message, tmp=None):
-        message.payload = message.payload.decode("utf-8")
-        print(
-            "New Received message "
-            + str(message.payload)
-            + " on topic '"
-            + message.topic
-            + "' with QoS "
-            + str(message.qos)
-        )
-        if message.topic == m.REQUESTED_STATE_TOPIC:
-            if str(message.payload) == "true":
-                print("TURNING ON")
-                asyncio.create_task(camera_service.floodlight_on(floodlight_cam))
-            elif str(message.payload) == "false":
-                print("TURNING OFF")
-                loop = asyncio.get_running_loop()
-                asyncio.create_task(camera_service.floodlight_off(floodlight_cam))
-            else:
-                print("Unknown command received: ", str(message.payload))
+            tg.create_task(mqtt_listen(camera_service, floodlight_cam))
 
-    mqtt_client = m.connect(on_message_callback)
-
-    while True:
-        floodlight_cam = await camera_service.update(floodlight_cam)
-        floodlight_state = floodlight_cam.floodlight
-        print("Writing: ", floodlight_state)
-        m.write_state(mqtt_client, floodlight_state)
-        await asyncio.sleep(1)
+            while True:
+                floodlight_cam = await camera_service.update(floodlight_cam)
+                floodlight_state = floodlight_cam.floodlight
+                print("Writing: ", floodlight_state)
+                await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=floodlight_state)
+                await asyncio.sleep(1)
 
 
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(async_main())
+asyncio.run(async_main())
