@@ -68,13 +68,11 @@ async def async_main():
                     "on": floodlight_cam.on,
                     "motion": floodlight_cam.motion,
                     "last_event_ts": floodlight_cam.last_event_ts,
-                    "last_event": floodlight_cam.last_event,
+                    # "last_event": floodlight_cam.last_event,
                     "raw": floodlight_cam.raw_dict,
                 }
                 state_json = json.dumps(state, indent=4)
-
                 # log(state_json)
-
                 await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=state_json)
                 await asyncio.sleep(5)
 
