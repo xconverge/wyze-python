@@ -28,10 +28,10 @@ async def mqtt_listen(camera_service, floodlight_cam):
                 message.payload = message.payload.decode("utf-8")
                 log("New Received message " + message.topic.value + " " + message.payload)
                 if message.topic.matches(TOPIC_STATE_REQUESTED):
-                    if message.payload == "true":
+                    if message.payload == "on":
                         log("TURNING ON")
                         await camera_service.floodlight_on(floodlight_cam)
-                    elif message.payload == "false":
+                    elif message.payload == "off":
                         log("TURNING OFF")
                         await camera_service.floodlight_off(floodlight_cam)
                     else:
@@ -65,8 +65,10 @@ async def async_main():
             while True:
                 floodlight_cam = await camera_service.update(floodlight_cam)
 
+                floodlight_state = "on" if floodlight_cam.floodlight else "off"
+
                 state = {
-                    "floodlight": floodlight_cam.floodlight,
+                    "floodlight": floodlight_state,
                     "on": floodlight_cam.on,
                     "motion": floodlight_cam.motion,
                     "last_event_ts": floodlight_cam.last_event_ts,
@@ -77,8 +79,8 @@ async def async_main():
                 await mqtt_client.publish(TOPIC_STATE_ACTUAL, payload=state_json)
 
                 if prev_state != floodlight_cam.floodlight:
-                    log("State changed, now: " + str(floodlight_cam.floodlight) )
-                    await mqtt_client.publish(TOPIC_STATE_FLOODLIGHT_CHANGE, payload=floodlight_cam.floodlight)
+                    log("State changed, now: " + floodlight_state )
+                    await mqtt_client.publish(TOPIC_STATE_FLOODLIGHT_CHANGE, payload=floodlight_state)
 
                 prev_state = floodlight_cam.floodlight
 
