@@ -44,10 +44,11 @@ async def mqtt_listen(camera_service, floodlight_cam):
 
 
 async def async_main():
-    mqtt_client = aiomqtt.Client(secrets["MQTT_HOST"])
     mqtt_retry_interval = 10  # Seconds
+
     while True:
         try:
+            mqtt_client = aiomqtt.Client(secrets["MQTT_HOST"])
             async with mqtt_client:
                 async with asyncio.TaskGroup() as tg:
                     client = await Wyzeapy.create()
