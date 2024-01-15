@@ -22,25 +22,24 @@ def log(message):
 
 async def mqtt_listen(camera_service, floodlight_cam):
     async with aiomqtt.Client(secrets["MQTT_HOST"]) as client:
-        async with client.messages() as messages:
-            await client.subscribe(TOPIC_STATE_REQUESTED)
-            async for message in messages:
-                message.payload = message.payload.decode("utf-8")
-                log(
-                    "New Received message "
-                    + message.topic.value
-                    + " "
-                    + message.payload
-                )
-                if message.topic.matches(TOPIC_STATE_REQUESTED):
-                    if message.payload == "on":
-                        log("TURNING ON")
-                        await camera_service.floodlight_on(floodlight_cam)
-                    elif message.payload == "off":
-                        log("TURNING OFF")
-                        await camera_service.floodlight_off(floodlight_cam)
-                    else:
-                        log("Unknown command received: " + message.payload)
+        await client.subscribe(TOPIC_STATE_REQUESTED)
+        async for message in client.messages:
+            message.payload = message.payload.decode("utf-8")
+            log(
+                "New Received message "
+                + message.topic.value
+                + " "
+                + message.payload
+            )
+            if message.topic.matches(TOPIC_STATE_REQUESTED):
+                if message.payload == "on":
+                    log("TURNING ON")
+                    await camera_service.floodlight_on(floodlight_cam)
+                elif message.payload == "off":
+                    log("TURNING OFF")
+                    await camera_service.floodlight_off(floodlight_cam)
+                else:
+                    log("Unknown command received: " + message.payload)
 
 
 async def async_main():
