@@ -1,3 +1,3 @@
 wyzeapy
 python-dotenv
-aiomqtt
+aiomqtt==1.2.1
